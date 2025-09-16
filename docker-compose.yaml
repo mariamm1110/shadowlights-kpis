@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  n8n:
+    build: ./n8n
+    container_name: n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin123
+    volumes:
+      - ./workspace:/data              # CSV + pipeline (solo lectura no es necesario, pero puedes dejarlo rw)
+      - n8n_internal:/home/node/.n8n   # (si ya lo tienes así, perfecto)
+      - warehouse_data:/warehouse      # <— NUEVO: aquí se escribirá la base DuckDB
+
+volumes:
+  n8n_internal:
+  warehouse_data:
