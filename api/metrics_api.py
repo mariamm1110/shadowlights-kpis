@@ -7,7 +7,7 @@ import os
 
 DB_PATH = os.path.expanduser("workspace/warehouse.duckdb")
 
-app = FastAPI(tittle="Metrics KPIs API")
+app = FastAPI(title="Metrics KPIs API")
 
 def _get_max_date(con) -> date:
     maxdate = con.execute("SELECT MAX(CAST(date AS DATE)) FROM bronze.ads_spend").fetchone()[0]
@@ -20,10 +20,12 @@ def _safe_div(n: float, d: float) -> Optional[float]:
 
 def _compute_kpis(cur_spend: float, cur_conv: float, prev_spend: float, prev_conv: float) -> Dict[str, Any]:
     # CAC = spend / conversions
+    # CAC (Customer Acquisition Cost)
     cac_cur = _safe_div(cur_spend, cur_conv)
     cac_prev = _safe_div(prev_spend, prev_conv)
 
     # ROAS = (revenue - spend) / spend 
+    # ROAS (Return on Ad Spend)
     roas_cur = _safe_div(cur_conv * 100, cur_spend)
     roas_prev = _safe_div(prev_conv * 100, prev_spend)
 
@@ -32,7 +34,7 @@ def _compute_kpis(cur_spend: float, cur_conv: float, prev_spend: float, prev_con
             return {"current": now, "prior": prev, "delta_abs": None, "delta_pct": None}
         abs_delta = round(now - prev, 4)
         pct_delta = None if prev == 0 else round((now - prev) / prev * 100, 2)
-        return {"curret": round(now, 4), "prior": round(prev, 4), "delta_abs": abs_delta, "delta_pct": pct_delta}
+        return {"current": round(now, 4), "prior": round(prev, 4), "delta_abs": abs_delta, "delta_pct": pct_delta}
     
     return {
         "cac": deltas(cac_cur, cac_prev),
@@ -83,7 +85,7 @@ def metrics(
     rows = con.execute(q, [start_date, end_date, prior_start, prior_end]).fetchall()
     con.close()
 
-    cur_spend =cur_conv = prv_spend = prv_conv = 0.0
+    cur_spend = cur_conv = prv_spend = prv_conv = 0.0
     for period, spend, conv in rows:
         spend = float(spend or 0.0)
         conv = float(conv or 0.0)
