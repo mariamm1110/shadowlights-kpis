@@ -313,6 +313,273 @@ The implementation showcases modern data democratization principles, making anal
 
 ---
 
+## 🧠 Part 5 - LangChain + AI Integration (Advanced Natural Language Processing)
+
+### Overview
+The project now includes a sophisticated LangChain integration powered by Ollama, providing enterprise-grade natural language processing for both KPI analysis and SQL query generation.
+
+### Architecture
+
+```
+Natural Language Question → LangChain Intent Chain → LangChain SQL Chain → Database → Results
+                         ↓                        ↓
+                  Intent Parser              SQL Generator
+                  (Ollama LLM)               (Ollama LLM)
+```
+
+### LangChain Components
+
+#### 1. **Intent Recognition Chain**
+```python
+self.intent_chain = LLMChain(
+    llm=OllamaLLM(model="llama3.2:3b"),
+    prompt=intent_prompt,
+    output_parser=MetricsIntentParser()
+)
+```
+
+Automatically detects:
+- **Question Type**: explain, compare, analyze, show, sql
+- **Metrics Focus**: CAC, ROAS, or both
+- **Time Context**: extracted time periods
+- **SQL Intent**: whether user wants raw SQL queries
+
+#### 2. **SQL Generation Chain**
+```python
+self.sql_chain = LLMChain(
+    llm=OllamaLLM(model="llama3.2:3b"),
+    prompt=sql_prompt,
+    output_parser=SQLQueryParser()
+)
+```
+
+Features:
+- **Database Schema Aware**: Real-time schema reflection
+- **Gold Table Priority**: Uses `mart.kpi_ads_30d` for KPI queries
+- **Raw Data Access**: Uses `bronze.ads_spend` for granular breakdowns
+- **SQL Validation**: Safety checks prevent dangerous operations
+
+#### 3. **Database Schema Reflection**
+```python
+class DatabaseSchemaReflector:
+    def get_schema_info(self) -> Dict[str, Any]:
+        # Discovers actual database structure
+        # Provides sample data for context
+        # Creates LLM-friendly schema descriptions
+```
+
+### Enhanced Endpoints
+
+#### **`/ask-ai` - Advanced Natural Language Interface**
+- **Multi-modal responses**: data, sql, both, auto
+- **Real-time analysis**: Uses actual Ollama LLM when available
+- **Intelligent fallbacks**: Works even when LLM is offline
+
+#### **`/ask-sql` - SQL Generation Service**
+- **Natural language → SQL**: Convert questions to executable queries
+- **Query execution**: Optional SQL execution with results
+- **Safety validation**: Read-only operations only
+
+### Usage Examples
+
+#### KPI Analysis (Gold Table)
+```bash
+curl "http://localhost:8001/ask-ai?question=Why did CAC get worse last month?"
+```
+
+**Response**: Deep root cause analysis using actual KPI data from `mart.kpi_ads_30d`
+
+```json
+{
+  "question": "Why did CAC get worse last month?",
+  "langchain_processing": {
+    "intent_detection": {"intent": "explain", "confidence": 0.9},
+    "llm_powered": true,
+    "framework": "LangChain + Ollama",
+    "model": "llama3.2:3b"
+  },
+  "ai_analysis": "🔍 **Data-Driven Root Cause Analysis**\n\n**Real Data Analysis**:\n• **CAC**: $29.81 (↑7.6% vs $32.27)\n• **Spend**: $1,690,764 (↑15.2%)\n• **Conversions**: 54,917 (↓8.1%)\n\n**📊 Root Causes**: Efficiency Drop: Spend increased but conversions dropped..."
+}
+```
+
+#### SQL Generation
+```bash
+curl "http://localhost:8001/ask-sql?question=Show me CAC and ROAS performance&execute=true"
+```
+
+**Response**: Intelligent SQL generation with execution
+
+```json
+{
+  "sql_generation": {
+    "sql": "SELECT metric, last_30, prior_30, delta_abs, delta_pct FROM mart.kpi_ads_30d WHERE metric IN ('CAC', 'ROAS')",
+    "source": "langchain_llm",
+    "validated": true
+  },
+  "execution": {
+    "success": true,
+    "results": [
+      {"metric": "CAC", "last_30": 29.8093, "prior_30": 32.2715, "delta_pct": -7.63},
+      {"metric": "ROAS", "last_30": 3.3547, "prior_30": 3.0987, "delta_pct": 8.26}
+    ]
+  }
+}
+```
+
+#### Platform Breakdown (Raw Data)
+```bash
+curl "http://localhost:8001/ask-sql?question=Break down spend by platform&execute=true"
+```
+
+**Response**: Automatically uses raw data table for granular analysis
+
+```json
+{
+  "sql_generation": {
+    "sql": "SELECT platform, SUM(spend) AS total_spend FROM bronze.ads_spend GROUP BY platform",
+    "source": "langchain_llm"
+  },
+  "execution": {
+    "results": [
+      {"platform": "Google", "total_spend": 847845.56},
+      {"platform": "Meta", "total_spend": 842918.76}
+    ]
+  }
+}
+```
+
+### Advanced Features
+
+#### Intelligent Table Selection
+The LangChain system automatically chooses the appropriate data source:
+
+- **KPI Questions** → `mart.kpi_ads_30d` (Gold Table)
+  - "What is our CAC performance?"
+  - "Show me ROAS trends"
+  - "Compare current vs prior metrics"
+
+- **Breakdown Questions** → `bronze.ads_spend` (Raw Data)
+  - "Spend by platform"
+  - "Daily conversion trends"
+  - "Campaign performance breakdown"
+
+#### Response Modes
+```bash
+# Return analysis only
+?mode=data
+
+# Return SQL query only
+?mode=sql
+
+# Return both SQL and analysis
+?mode=both
+
+# Let AI decide based on question
+?mode=auto
+```
+
+#### Real-time Schema Context
+The LLM receives actual database structure:
+
+```
+DATABASE TABLES:
+
+Table: mart.kpi_ads_30d
+Columns:
+  - metric: VARCHAR (nullable)
+  - last_30: DOUBLE (nullable)
+  - prior_30: DOUBLE (nullable)
+  - delta_abs: DOUBLE (nullable)
+  - delta_pct: DOUBLE (nullable)
+
+SAMPLE DATA:
+Table: mart.kpi_ads_30d
+  Row 1: {"metric": "CAC", "last_30": 29.8093, "delta_pct": -7.63}
+  Row 2: {"metric": "ROAS", "last_30": 3.3547, "delta_pct": 8.26}
+```
+
+### Installation & Setup
+
+#### Prerequisites
+```bash
+# Install Ollama (macOS)
+brew install ollama
+brew services start ollama
+
+# Download model
+ollama pull llama3.2:3b
+```
+
+#### Dependencies
+```bash
+pip install langchain langchain_ollama
+```
+
+#### LangChain-specific Environment
+```bash
+# Start enhanced API with LangChain
+cd api
+python langchain_api.py
+```
+
+The API runs on `http://localhost:8001` with full LangChain capabilities.
+
+### Technical Implementation
+
+#### Core LangChain Architecture
+```python
+class MetricsLLM:
+    def __init__(self):
+        self.llm = OllamaLLM(model="llama3.2:3b", temperature=0.1)
+        self.db_reflector = DatabaseSchemaReflector(DB_PATH)
+
+        # LangChain Chains
+        self.intent_chain = LLMChain(llm, intent_prompt, intent_parser)
+        self.sql_chain = LLMChain(llm, sql_prompt, sql_parser)
+        self.analysis_chain = LLMChain(llm, analysis_prompt, response_parser)
+```
+
+#### Data Flow
+1. **Question Input**: "Why did CAC worsen?"
+2. **Intent Detection**: LangChain classifies as "explain" + "CAC focus"
+3. **Context Injection**: Database schema + sample data provided to LLM
+4. **Query Generation**: LLM generates appropriate SQL for gold table
+5. **Execution**: Query runs safely with validation
+6. **Analysis**: LLM provides root cause analysis of actual results
+
+### Business Value
+
+#### For Data Analysts
+- **Natural Queries**: Ask questions in plain English
+- **Instant SQL**: Get optimized queries for complex analysis
+- **Context-Aware**: System knows your data structure
+
+#### For Business Users
+- **Self-Service**: Direct access to insights without SQL knowledge
+- **Real-time**: Immediate answers to business questions
+- **Explanatory**: AI explains the "why" behind metric changes
+
+#### For Engineering Teams
+- **Extensible**: Easy to add new question patterns and tables
+- **Safe**: Built-in SQL validation prevents harmful operations
+- **Scalable**: LangChain architecture supports complex workflows
+
+### Comparison: Basic vs LangChain Integration
+
+| Feature | Basic Agent (Part 4) | LangChain Integration (Part 5) |
+|---------|----------------------|--------------------------------|
+| **NL Processing** | Regex patterns | Real LLM understanding |
+| **SQL Generation** | None | Dynamic query creation |
+| **Data Awareness** | Static responses | Real-time schema reflection |
+| **Question Types** | Time-based only | Unlimited natural language |
+| **Explanations** | Template-based | AI-generated insights |
+| **Table Selection** | Fixed | Intelligent routing |
+| **Extensibility** | Manual patterns | Self-learning from data |
+
+The LangChain integration transforms the system from a pattern-matching interface into a truly intelligent data assistant that understands your business context and generates actionable insights.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
